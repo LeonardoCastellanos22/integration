@@ -12,6 +12,7 @@ BASE_URL = "cloudx.safeuem.com"
 HEADERS ={"content-type":"application/json"}
 
 
+
 app = Flask(__name__)
 bootstrap = Bootstrap(app) #Toma la app de Flask y así se instancia Bootstrap
 CORS(app)
@@ -29,6 +30,11 @@ class LoginForm(FlaskForm):
 class OptionFile(FlaskForm):
     option = SelectField('Select the option:', choices=[('bulk', 'Bulk Devices (CSV File)'), ('single', 'Single Device')])
     submit = SubmitField("Next")
+
+class MoveSingleDevice(FlaskForm):
+    device_identifier = StringField("Device identifier", [validators.input_required(), validators.length(max=25)])
+    to_group = SelectField("To group: ", coerce=str)
+    submit = SubmitField("Send request")
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -49,6 +55,7 @@ def login():
         else:
             cookie = response.cookies.get_dict()
             session['token'] = cookie['token']
+            session['server'] = safeuem_user
             return redirect(url_for('move'))
     
     return render_template('login.html', **context)
@@ -83,9 +90,63 @@ def unenroll():
 @app.route('/bulk')
 def bulk():
     return render_template('bulk.html')
-@app.route('/single')
+
+@app.route('/single', methods=['GET', 'POST'])
 def single():
-    return render_template('single.html')
+    server = session.get('server')
+    token = session.get('token')
+    groups = get_groups_request(server, token)
+    options = get_properties_from_groups(groups)
+    move_single_device = MoveSingleDevice()
+    move_single_device.to_group.choices = options
+    context = {
+        "move_single_device" : move_single_device
+    }
+    if move_single_device.validate_on_submit():
+        device_identifier = move_single_device.device_identifier.data # Get imei
+        to_group = move_single_device.to_group.data #To group
+        response = get_device_request(device_identifier, token, server)
+        if response["total"] == 0:
+            flash("Device not found")
+            return redirect(url_for('single'))
+        else:
+            ids, from_group = get_device_id_group(response["devices"][0])
+            move = move_request(ids, from_group, to_group, token, server)
+            if move != 200:
+                flash("Error moving the device")
+                return redirect(url_for('single'))
+            else :
+                return redirect(url_for('single'))                  
+    
+        
+    
+    return render_template('single.html', **context)
+
+def get_device_id_group(device_json):
+    return [device_json["id"]], device_json["groups"][0]
+    
+
+def get_device_request(keyword, token, server):
+    url = f"https://{server}.{BASE_URL}/partner/device/search?group=&by=others&keyword={keyword}"
+    cookies = {"token": token}
+    response = requests.get(url, cookies = cookies)
+    return response.json()
+
+def move_request(ids_devices, from_group, to_group, token, server):
+    url = f"https://{server}.{BASE_URL}/partner/device/move"
+    body = {"from" : from_group, "ids" : ids_devices,"to" : to_group}
+    cookies = {"token": token}
+    response = create_request(url, HEADERS, "put", data = body, cookies=cookies)
+    return response.status_code
+
+def get_properties_from_groups(groups):    
+    return [(group["id"], group["name"]) for group in groups]           
+            
+def get_groups_request(server, token):
+    url = f"https://{server}.{BASE_URL}/api/deviceGroup?deviceCount=false"
+    cookies = {"token": token}
+    response = requests.get(url, cookies = cookies)    
+    return response.json()["groups"]
 
 def login_request(user, password, server):
     url = f"https://{server}.{BASE_URL}/partner/login"

@@ -1,12 +1,30 @@
 body {
+    padding-top: 1%;
+    padding-bottom: 1%;
+
     background-color: #f3f4f5;
     color: #133778;
     font-family: Arial, sans-serif;
-    display: flex;
+    display: flex;    
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100vh;
 }
+content {    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.nav {
+    padding-bottom: 1%;
+    text-align: center;
+    display: flex;
+    align-items: center;
+}
+
 
 .container {
     max-width: 300px;
@@ -56,3 +74,10 @@ fields {
     font-size: 16px;
     border-radius: 8px;
 }
+
+select {
+    padding: 8px;
+    font-size: 16px;
+    border-radius: 5px;
+}
+

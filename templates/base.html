@@ -1,17 +1,21 @@
 {%extends 'bootstrap/base.html'%}
 {%block head%}
-    {{super()}}
-    
+    {{super()}}       
     <title>
         {% block title%}SafeUEM{% endblock %}
     </title>
 {%endblock%} 
 
-{%block body%}   
+
+
+{%block body%}  
+    {% block navbar %}
+    {% endblock %} 
 
     {%block content%}
     {% endblock %}    
 
 
 {%endblock%}
+
   

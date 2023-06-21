@@ -26,6 +26,10 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Log in")
     
 
+class OptionFile(FlaskForm):
+    option = SelectField('Select the option:', choices=[('bulk', 'Bulk Devices (CSV File)'), ('single', 'Single Device')])
+    submit = SubmitField("Next")
+
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -45,13 +49,43 @@ def login():
         else:
             cookie = response.cookies.get_dict()
             session['token'] = cookie['token']
-            return redirect(url_for('read'))
+            return redirect(url_for('move'))
     
     return render_template('login.html', **context)
 
-@app.route('/read')
-def read():
-    return "Read Template"
+@app.route('/move', methods=['GET', 'POST'])
+def move():
+    option_file = OptionFile()
+    context = {
+        "option_file": option_file
+    }
+    if option_file.validate_on_submit():
+        option = option_file.option.data #Get data from selector
+        if option == "bulk":
+            return redirect(url_for('bulk'))
+        else :
+            return redirect(url_for('single'))        
+    
+    return render_template('move.html', **context)
+
+@app.route('/unlock')
+def unlock():
+    return render_template('unlock.html')
+
+@app.route('/enroll')
+def enroll():
+    return render_template('enroll.html')
+
+@app.route('/unenroll')
+def unenroll():
+    return render_template('unenroll.html')
+
+@app.route('/bulk')
+def bulk():
+    return render_template('bulk.html')
+@app.route('/single')
+def single():
+    return render_template('single.html')
 
 def login_request(user, password, server):
     url = f"https://{server}.{BASE_URL}/partner/login"

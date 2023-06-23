@@ -4,7 +4,9 @@ from flask_cors import CORS
 from flask_wtf import FlaskForm
 from wtforms.fields import StringField, PasswordField, SubmitField, SelectField
 from wtforms import validators
+from fileinput import filename
 import requests
+import shutil
 import time
 import os
 
@@ -87,8 +89,24 @@ def enroll():
 def unenroll():
     return render_template('unenroll.html')
 
-@app.route('/bulk')
+@app.route('/bulk', methods=['GET', 'POST'])
 def bulk():
+    server = session.get('server')
+    token = session.get('token')
+    if request.method == 'POST': 
+        try:
+            f = request.files['csvFile']
+            f.save(f'./files/{f.filename}') 
+            file_id = update_file_to_safeuem(f.filename, token, server)   
+            response = move_bulk_devices(file_id, token, server)
+            path = os.path.join(f'./files', f.filename)  
+            os.remove(path)
+            print(response)                
+ 
+        except(FileNotFoundError) as error:
+            print(error)
+        
+        
     return render_template('bulk.html')
 
 @app.route('/single', methods=['GET', 'POST'])
@@ -121,6 +139,24 @@ def single():
         
     
     return render_template('single.html', **context)
+
+def move_bulk_devices(file_id, token, server):
+    url = f"https://{server}.{BASE_URL}/partner/device/moveBatch"
+    cookies = {"token": token}
+    body = {"by" : "iMEI", "file" : file_id}
+    response = create_request(url, HEADERS, "put", data = body, cookies=cookies)
+    return response.json()
+    
+
+def update_file_to_safeuem( file_name, token, server):
+    url = f"https://{server}.{BASE_URL}/partner/temp/moveBatch"
+    cookies = {"token": token}
+    multipart_form_data = {
+        'filename' : open(f'./files/{file_name}', 'rb')       
+    }
+    response = requests.post(url, files=multipart_form_data, cookies= cookies)
+    return response.json()["fileIds"][0]
+
 
 def get_device_id_group(device_json):
     return [device_json["id"]], device_json["groups"][0]

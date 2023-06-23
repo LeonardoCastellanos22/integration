@@ -1,0 +1,33 @@
+.custom-file-label {
+    cursor: pointer;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    padding: 12px 20px; /* Aumentar el tamaño del padding */
+    background-color: #f5f5f5;
+    display: inline-block;
+    width: 350px; /* Aumentar el ancho del campo de entrada de archivos */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 16px;
+  }
+
+  .custom-file-label:hover {
+    background-color: #e9e9e9;
+  }
+
+  .custom-file-label::before {
+    content: "Seleccionar archivo";
+    display: inline-block;
+    font-weight: bold;
+    margin-right: 5px;
+    font-size: 18px;
+  }
+
+  .custom-file-label span {
+    font-weight: normal;
+  }
+
+  .center {
+    text-align: center;
+  }

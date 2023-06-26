@@ -2,13 +2,15 @@ from flask import Flask, render_template, request, flash, redirect, url_for, ses
 from flask_bootstrap import Bootstrap #Importamos bootstrap
 from flask_cors import CORS
 from flask_wtf import FlaskForm
-from wtforms.fields import StringField, PasswordField, SubmitField, SelectField
+from wtforms.fields import StringField, PasswordField, SubmitField, SelectField, RadioField
 from wtforms import validators
 from fileinput import filename
 import requests
 import shutil
 import time
 import os
+import zero_touch_api
+from read_csv import read_csv
 
 BASE_URL = "cloudx.safeuem.com"
 HEADERS ={"content-type":"application/json"}
@@ -37,6 +39,19 @@ class MoveSingleDevice(FlaskForm):
     device_identifier = StringField("Device identifier", [validators.input_required(), validators.length(max=25)])
     to_group = SelectField("To group: ", coerce=str)
     submit = SubmitField("Send request")
+    
+class EnrollSingleDevice(FlaskForm):
+    device_identifier = StringField("Device IMEI", [validators.input_required(), validators.length(max=25)])
+    configuration = SelectField("Configuration: ", coerce=str)
+    submit = SubmitField("Send request")
+
+class EnrollBulkDevice(FlaskForm):
+    configuration = SelectField("Configuration: ", coerce=str)
+    
+class UnenrollSingleDevice(FlaskForm):
+    device_identifier = StringField("Device IMEI", [validators.input_required(), validators.length(max=25)])
+    delete = RadioField("Delete device from", choices=[('zt','Zero Touch'),('zt&sf', 'Zero Touch and SafeUEM')],  default='zt')
+    submit = SubmitField("Unenroll device")
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -56,41 +71,118 @@ def login():
             return redirect(url_for('login'))
         else:
             cookie = response.cookies.get_dict()
+            list_of_customers = zero_touch_api.get_list_of_customers()
+            customer_id = zero_touch_api.get_customer_id("SafeUEM", list_of_customers)
+            configurations = zero_touch_api.get_configurations(customer_id)
+            session['customer_id'] = customer_id
+            session['configurations'] = configurations
             session['token'] = cookie['token']
             session['server'] = safeuem_user
-            return redirect(url_for('move'))
+            return redirect(url_for('single_move'))
     
     return render_template('login.html', **context)
 
-@app.route('/move', methods=['GET', 'POST'])
-def move():
-    option_file = OptionFile()
+
+@app.route('/single/enroll', methods=['GET', 'POST'])
+def single_enroll():
+    enroll_single_device_form = EnrollSingleDevice()
+    token = session.get('token')
+    server = session.get('server')
+    list_of_customers = zero_touch_api.get_list_of_customers()
+    customer_id = zero_touch_api.get_customer_id("SafeUEM", list_of_customers)
+    configurations = zero_touch_api.get_configurations(customer_id)
+    enroll_single_device_form.configuration.choices = configurations
     context = {
-        "option_file": option_file
-    }
-    if option_file.validate_on_submit():
-        option = option_file.option.data #Get data from selector
-        if option == "bulk":
-            return redirect(url_for('bulk'))
-        else :
-            return redirect(url_for('single'))        
+        "enroll_single_device_form": enroll_single_device_form
+    }  
+    if enroll_single_device_form.validate_on_submit():
+        imei = enroll_single_device_form.device_identifier.data # Get IMEi
+        configuration = enroll_single_device_form.configuration.data #Get Config
+        claim = zero_touch_api.claim_device(imei, customer_id)
+        set_configuration = zero_touch_api.set_configuration(configuration, claim, customer_id)
+        return redirect(url_for('single_enroll'))
+
+
+
+    return render_template('single_enroll.html', **context)
+
+@app.route('/bulk/enroll', methods = ['GET', 'POST'])
+def bulk_enroll():
+
+    server = session.get('server')
+    token = session.get('token')
+    list_of_customers = zero_touch_api.get_list_of_customers()
+    customer_id = zero_touch_api.get_customer_id("SafeUEM", list_of_customers)
+    configurations = zero_touch_api.get_configurations(customer_id)
+    context = {
+        "configurations": configurations
+    } 
+    if request.method == 'POST': 
+        try:
+            f = request.files['csvFile']
+            f.save(f'./files/{f.filename}')
+            imeis = read_csv(f'./files/{f.filename}')
+            configuration = request.form.get('conf_select')   
+            default_configuration = zero_touch_api.set_default_configuration(configuration)
+            bulk_json = zero_touch_api.build_bulk_json(customer_id, imeis)
+            claims = zero_touch_api.claim_batch_devices(bulk_json)      
+            path = os.path.join(f'./files', f.filename)  
+            os.remove(path)
     
-    return render_template('move.html', **context)
+        except(FileNotFoundError) as error:
+            print(error)
+        
+        
+    return render_template('bulk_enroll.html', **context)
 
-@app.route('/unlock')
-def unlock():
-    return render_template('unlock.html')
+@app.route('/single/unenroll', methods=['GET', 'POST'])
+def single_unenroll():
+    single_unenroll_form = UnenrollSingleDevice()
+    context = {
+        "single_unenroll_form" : single_unenroll_form
+        
+    }
+    if single_unenroll_form.validate_on_submit():
+        choice = single_unenroll_form.delete.data
+        if choice == 'zt':
+            imei = single_unenroll_form.device_identifier.data #Get IMEI
+            unclaim = zero_touch_api.unclaim_single_device(imei)
+            return redirect(url_for('single_unenroll'))        
+        else:
+            return redirect(url_for('single_unenroll')) 
+        
+        
+    return render_template('single_unenroll.html', **context)
 
-@app.route('/enroll')
-def enroll():
-    return render_template('enroll.html')
+@app.route('/bulk/unenroll', methods = ['GET', 'POST'])
+def bulk_unenroll():
+    server = session.get('server')
+    token = session.get('token')
+    if request.method == 'POST': 
+        try:
+            option = request.form.getlist('delete_options')
+            print(option)
+            f = request.files['csvFile']
+            f.save(f'./files/{f.filename}') 
+            imeis = read_csv(f'./files/{f.filename}')
+            if option[0] == 'zt':
+                unclaim_json = zero_touch_api.build_bulk_unclaim_json(imeis)
+                print(unclaim_json)
 
-@app.route('/unenroll')
-def unenroll():
-    return render_template('unenroll.html')
+                unclaim_response = zero_touch_api.unclaim_batch_devices(unclaim_json)
+            else:
+                print("Deleting")
+            path = os.path.join(f'./files', f.filename)  
+            os.remove(path)
+ 
+        except(FileNotFoundError) as error:
+            print(error)
+        
+        
+    return render_template('bulk_unenroll.html')
 
-@app.route('/bulk', methods=['GET', 'POST'])
-def bulk():
+@app.route('/bulk/move', methods=['GET', 'POST'])
+def bulk_move():
     server = session.get('server')
     token = session.get('token')
     if request.method == 'POST': 
@@ -107,10 +199,10 @@ def bulk():
             print(error)
         
         
-    return render_template('bulk.html')
+    return render_template('bulk_move.html')
 
-@app.route('/single', methods=['GET', 'POST'])
-def single():
+@app.route('/single/move', methods=['GET', 'POST'])
+def single_move():
     server = session.get('server')
     token = session.get('token')
     groups = get_groups_request(server, token)
@@ -126,19 +218,19 @@ def single():
         response = get_device_request(device_identifier, token, server)
         if response["total"] == 0:
             flash("Device not found")
-            return redirect(url_for('single'))
+            return redirect(url_for('single_move'))
         else:
             ids, from_group = get_device_id_group(response["devices"][0])
             move = move_request(ids, from_group, to_group, token, server)
             if move != 200:
                 flash("Error moving the device")
-                return redirect(url_for('single'))
+                return redirect(url_for('single_move'))
             else :
-                return redirect(url_for('single'))                  
+                return redirect(url_for('single_move'))                  
     
         
     
-    return render_template('single.html', **context)
+    return render_template('single_move.html', **context)
 
 def move_bulk_devices(file_id, token, server):
     url = f"https://{server}.{BASE_URL}/partner/device/moveBatch"

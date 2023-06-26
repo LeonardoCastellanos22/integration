@@ -1,0 +1,71 @@
+{% extends 'base.html'%}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{%block head%}
+    {{super()}}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/upload_file.css')}}">
+
+{% endblock %}
+
+{%block body%}
+    {%block navbar%}
+        {%include 'navbar.html'%}
+    {%endblock%}
+    {%block content%} 
+
+    <div class="container container-center">   
+      <div class = "container-gray">     
+  
+            <form action = "/bulk/unenroll" method="post" enctype="multipart/form-data">
+              <div class="form-group textarea">
+                <label for="csvFile" style="font-size: 18px;">Update a CSV file:</label>
+                <div class="input-group">
+                    <div class="input-group-btn">
+                        <label class="btn btn-default btn-file" style="font-size: 14px;">
+                            Choose file <input type="file" id="csvFile" name="csvFile" accept=".csv" style="display: none;">
+                          </label>
+                        </div>
+                  <input type="text" class="form-control custom-file-label" id="fileLabel" readonly>
+                </div>
+                <label for="radio" style="font-size: 18px;">Choose delete option:</label><br>
+                <input type="radio" name="delete_options" id="option1" value="zt" checked="checked"> Zero Touch </input><br>
+                <input type="radio" name="delete_options" id="option2" value="zt-sf"> Zero Touch and SafeUEM </input><br>
+              </div>
+              <div class="center">
+                <button type="submit" class="btn btn-primary btn-lg btn-submit">Unenroll Devices</button>
+              </div>
+              <div class="progress center" style="display: none;">
+                <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+                </div>
+              </div>
+            </form>
+
+          </div>
+        
+    </div>
+        
+     
+    {%endblock%}
+
+    {%block scripts%}
+        {{super()}}
+
+        <script>
+            document.getElementById("csvFile").addEventListener("change", function(e) {
+              var fileLabel = document.getElementById("fileLabel");
+              fileLabel.value = e.target.files[0].name;
+            });
+                // Mostrar barra de progreso al enviar el formulario
+                $('form').on('submit', function() {
+                    $('.progress').show();
+              
+                    var progressBar = $('.progress-bar');
+                    progressBar.css('width', '30%').attr('aria-valuenow', 0);
+              
+      
+                  });
+          </script>
+    {%endblock%}
+
+
+{%endblock%}

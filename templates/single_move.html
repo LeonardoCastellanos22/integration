@@ -1,0 +1,36 @@
+{% extends 'base.html'%}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{%block head%}
+    {{super()}}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/single.css')}}">
+
+{% endblock %}
+
+{%block body%}
+    {%block navbar%}
+        {%include 'navbar.html'%}
+    {%endblock%}
+    {%block content%}
+
+    <div class="container container-center">   
+        <div class = "container-gray">   
+        {%for message in get_flashed_messages()%}
+        <div class = "alert alert-danger alert-dismissible">
+            <button type = "button" data-dismiss = "alert" class = "close">&times;</button>
+            {{message}}
+
+        </div>
+        {%endfor%} 
+        {{ wtf.quick_form(move_single_device) }}
+        
+    </div>
+      
+    {%block scripts%}
+        {{super()}}
+    {%endblock%}
+    {%endblock%}
+
+
+
+{%endblock%}

@@ -7,7 +7,7 @@
           <span class="icon-bar"></span>
           <span class="icon-bar"></span>
         </button>
-        <a class="navbar-brand" href="{{ url_for('move') }}">
+        <a class="navbar-brand" href="{{ url_for('single_move') }}">
             <span><img src="{{ url_for('static', filename='images/logo.jpg') }}" width="30" height="26" alt="" class="d-inline-block align-middle"></span>
              SafeUEM
             
@@ -19,17 +19,36 @@
       <!-- Collect the nav links, forms, and other content for toggling -->
       <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
         <ul class="nav navbar-nav">
-           <li><a href="{{ url_for('move') }}"><span class="glyphicon glyphicon-move" aria-hidden="true"></span> Move</a></li>
-           <li><a href="{{ url_for('enroll') }}"><span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span> Enroll</a></li>
-           <li><a href="{{ url_for('unenroll') }}"><span class="glyphicon glyphicon-erase" aria-hidden="true"></span> Unenroll</a></li>
-
+           <li class = "dropdown">
+             <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><span class="glyphicon glyphicon-move"></span> Move <span class="caret"></span> </a>
+             <ul class="dropdown-menu">
+              <li><a href="{{ url_for('single_move') }}">Single Move</a></li>
+              <li><a href="{{ url_for('bulk_move') }}">Bulk Move</a></li>
+            </ul>
+          </li>
+          <li class = "dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><span class="glyphicon glyphicon-plus-sign"></span> Enroll <span class="caret"></span> </a>
+            <ul class="dropdown-menu">
+             <li><a href="{{ url_for('single_enroll') }}">Single Enroll</a></li>
+             <li><a href="{{ url_for('bulk_enroll') }}">Bulk Enroll</a></li>
+           </ul>
+         </li>
+         <li class = "dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><span class="glyphicon glyphicon-erase"></span> Unenroll <span class="caret"></span> </a>
+            <ul class="dropdown-menu">
+              <li><a href="{{ url_for('single_unenroll') }}">Single Unenroll</a></li>
+              <li><a href="{{ url_for('bulk_unenroll') }}">Bulk Unenroll</a></li>
+           </ul>
+        </li>
         </ul>
         <ul class="nav navbar-nav navbar-right">
             <li><a href="#"><span class="glyphicon glyphicon-flag" aria-hidden="true"></span> Help</a></li>
             <li><a href="#"><span class="glyphicon glyphicon-log-out" aria-hidden="true"></span> Logout</a></li>
 
         </ul>
+
       </div>
+ 
       
     </div>
   </nav>

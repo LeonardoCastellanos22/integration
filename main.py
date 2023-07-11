@@ -11,6 +11,8 @@ import time
 import os
 import zero_touch_api
 from read_csv import read_csv
+from flask_login import logout_user
+
 
 BASE_URL = "cloudx.safeuem.com"
 HEADERS ={"content-type":"application/json"}
@@ -65,14 +67,18 @@ def login():
         password = login_form.password.data #Get Password
         safeuem_user = login_form.safeuem_user.data #Get SafeUEM user   
         response = login_request(user=str(username), password=str(password), server=str(safeuem_user))#Login Request
-        print("Response", response.status_code)
         if response.status_code >= 400:
             flash("Wrong credentials")
             return redirect(url_for('login'))
         else:
             cookie = response.cookies.get_dict()
+            service = zero_touch_api.get_credentials_account()
             list_of_customers = zero_touch_api.get_list_of_customers()
-            customer_id = zero_touch_api.get_customer_id("SafeUEM", list_of_customers)
+            customer_id = zero_touch_api.get_customer_id("Nexa", list_of_customers)
+            with open(f'user_credential_{customer_id}.json', 'w') as f:
+                print(f)
+          #  tos = zero_touch_api.tos_error(customer_id)
+          #  print(tos)
             configurations = zero_touch_api.get_configurations(customer_id)
             session['customer_id'] = customer_id
             session['configurations'] = configurations
@@ -82,6 +88,11 @@ def login():
     
     return render_template('login.html', **context)
 
+@app.route('/logout', methods=['GET','POST'])
+def logout():
+    logout_user() #Delete session cookies
+    os.remove("./user_credential.json")    
+    return redirect(url_for('login'))
 
 @app.route('/single/enroll', methods=['GET', 'POST'])
 def single_enroll():
@@ -89,7 +100,7 @@ def single_enroll():
     token = session.get('token')
     server = session.get('server')
     list_of_customers = zero_touch_api.get_list_of_customers()
-    customer_id = zero_touch_api.get_customer_id("SafeUEM", list_of_customers)
+    customer_id = zero_touch_api.get_customer_id("Nexa", list_of_customers)
     configurations = zero_touch_api.get_configurations(customer_id)
     enroll_single_device_form.configuration.choices = configurations
     context = {
@@ -112,7 +123,7 @@ def bulk_enroll():
     server = session.get('server')
     token = session.get('token')
     list_of_customers = zero_touch_api.get_list_of_customers()
-    customer_id = zero_touch_api.get_customer_id("SafeUEM", list_of_customers)
+    customer_id = zero_touch_api.get_customer_id("Nexa", list_of_customers)
     configurations = zero_touch_api.get_configurations(customer_id)
     context = {
         "configurations": configurations
@@ -123,7 +134,7 @@ def bulk_enroll():
             f.save(f'./files/{f.filename}')
             imeis = read_csv(f'./files/{f.filename}')
             configuration = request.form.get('conf_select')   
-            default_configuration = zero_touch_api.set_default_configuration(configuration)
+            default_configuration = zero_touch_api.set_default_configuration(configuration, customer_id)
             bulk_json = zero_touch_api.build_bulk_json(customer_id, imeis)
             claims = zero_touch_api.claim_batch_devices(bulk_json)      
             path = os.path.join(f'./files', f.filename)  
@@ -303,5 +314,5 @@ def create_request(url, headers, request_type, data=None, cookies = None):
     
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000, debug=True)

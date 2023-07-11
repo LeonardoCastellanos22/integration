@@ -12,6 +12,7 @@ import os
 import zero_touch_api
 from read_csv import read_csv
 from flask_login import logout_user
+import uvicorn
 
 
 BASE_URL = "cloudx.safeuem.com"

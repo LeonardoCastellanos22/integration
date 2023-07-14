@@ -11,8 +11,10 @@ import time
 import os
 import zero_touch_api
 from read_csv import read_csv
-from flask_login import logout_user
+from flask_login import logout_user, LoginManager, login_user, login_required
 import uvicorn
+from flask_login import UserMixin
+
 
 
 BASE_URL = "cloudx.safeuem.com"
@@ -25,6 +27,7 @@ bootstrap = Bootstrap(app) #Toma la app de Flask y así se instancia Bootstrap
 CORS(app)
 SECRET_KEY = os.urandom(32)
 app.config['SECRET_KEY'] = SECRET_KEY
+
 
 
 class LoginForm(FlaskForm):
@@ -57,6 +60,7 @@ class UnenrollSingleDevice(FlaskForm):
     submit = SubmitField("Unenroll device")
 
 
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     login_form = LoginForm()
@@ -75,7 +79,10 @@ def login():
             cookie = response.cookies.get_dict()
             service = zero_touch_api.get_credentials_account()
             list_of_customers = zero_touch_api.get_list_of_customers()
-            customer_id = zero_touch_api.get_customer_id("Nexa", list_of_customers)
+            customer_id = zero_touch_api.get_customer_id(safeuem_user.capitalize(), list_of_customers)
+            if customer_id == None:
+                flash("Client not registered in AE")
+                return redirect(url_for('login'))
             with open(f'user_credential_{customer_id}.json', 'w') as f:
                 print(f)
           #  tos = zero_touch_api.tos_error(customer_id)
@@ -90,19 +97,19 @@ def login():
     return render_template('login.html', **context)
 
 @app.route('/logout', methods=['GET','POST'])
+#@login_required
 def logout():
-    logout_user() #Delete session cookies
-    os.remove("./user_credential.json")    
+    customer_id = session['customer_id']
+    os.remove(f"./user_credential_{customer_id}.json")   
+    session.clear()     
     return redirect(url_for('login'))
 
 @app.route('/single/enroll', methods=['GET', 'POST'])
+#@login_required
 def single_enroll():
     enroll_single_device_form = EnrollSingleDevice()
-    token = session.get('token')
-    server = session.get('server')
-    list_of_customers = zero_touch_api.get_list_of_customers()
-    customer_id = zero_touch_api.get_customer_id("Nexa", list_of_customers)
-    configurations = zero_touch_api.get_configurations(customer_id)
+    customer_id = session.get('customer_id')
+    configurations = session.get('configurations')
     enroll_single_device_form.configuration.choices = configurations
     context = {
         "enroll_single_device_form": enroll_single_device_form
@@ -110,22 +117,20 @@ def single_enroll():
     if enroll_single_device_form.validate_on_submit():
         imei = enroll_single_device_form.device_identifier.data # Get IMEi
         configuration = enroll_single_device_form.configuration.data #Get Config
-        claim = zero_touch_api.claim_device(imei, customer_id)
+        claim, code = zero_touch_api.claim_device(imei, customer_id)
+        if code != 201:
+            flash(claim)
+            return redirect(url_for('single_enroll'))            
         set_configuration = zero_touch_api.set_configuration(configuration, claim, customer_id)
         return redirect(url_for('single_enroll'))
-
-
 
     return render_template('single_enroll.html', **context)
 
 @app.route('/bulk/enroll', methods = ['GET', 'POST'])
+#@login_required
 def bulk_enroll():
-
-    server = session.get('server')
-    token = session.get('token')
-    list_of_customers = zero_touch_api.get_list_of_customers()
-    customer_id = zero_touch_api.get_customer_id("Nexa", list_of_customers)
-    configurations = zero_touch_api.get_configurations(customer_id)
+    customer_id = session.get('customer_id')
+    configurations = session.get('configurations')
     context = {
         "configurations": configurations
     } 
@@ -144,10 +149,13 @@ def bulk_enroll():
         except(FileNotFoundError) as error:
             print(error)
         
+        except(IsADirectoryError) as error:
+            print(error)
         
     return render_template('bulk_enroll.html', **context)
 
 @app.route('/single/unenroll', methods=['GET', 'POST'])
+#@login_required
 def single_unenroll():
     single_unenroll_form = UnenrollSingleDevice()
     context = {
@@ -158,7 +166,11 @@ def single_unenroll():
         choice = single_unenroll_form.delete.data
         if choice == 'zt':
             imei = single_unenroll_form.device_identifier.data #Get IMEI
-            unclaim = zero_touch_api.unclaim_single_device(imei)
+            unclaim, code = zero_touch_api.unclaim_single_device(imei)
+            if code != 201:
+                flash(unclaim)
+                return redirect(url_for('single_enroll'))
+            
             return redirect(url_for('single_unenroll'))        
         else:
             return redirect(url_for('single_unenroll')) 
@@ -168,8 +180,7 @@ def single_unenroll():
 
 @app.route('/bulk/unenroll', methods = ['GET', 'POST'])
 def bulk_unenroll():
-    server = session.get('server')
-    token = session.get('token')
+
     if request.method == 'POST': 
         try:
             option = request.form.getlist('delete_options')
@@ -189,11 +200,14 @@ def bulk_unenroll():
  
         except(FileNotFoundError) as error:
             print(error)
+        except(IsADirectoryError) as error:
+            print(error)
         
         
     return render_template('bulk_unenroll.html')
 
 @app.route('/bulk/move', methods=['GET', 'POST'])
+#@login_required
 def bulk_move():
     server = session.get('server')
     token = session.get('token')

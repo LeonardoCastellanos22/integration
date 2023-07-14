@@ -16,6 +16,8 @@ import json
 import webbrowser
 from urllib.error import HTTPError
 from argparse import ArgumentParser
+from googleapiclient.errors import HttpError
+
 
 
 
@@ -100,14 +102,28 @@ def get_list_of_customers():
     service = get_service(get_credential_account)
     customers = service.partners().customers().list(partnerId=PARTNER_ID).execute()["customers"]
     list_customers = {customer["companyName"]: customer["companyId"] for customer in customers}
+    list_customers["Multintegral"] = list_customers["multintergral"]
+    del list_customers["multintergral"]
+    list_customers["Cenestel"] = list_customers["CENESTEL"]
+    del list_customers["CENESTEL"]
     return list_customers
     
     
 def claim_device(device_identifier, id_customer):
     service = get_service(get_credential_account)
     claim = build_json_to_claim(device_identifier, id_customer)
-    claim_response = service.partners().devices().claim(partnerId = PARTNER_ID, body=claim).execute()
-    return claim_response["deviceId"]
+    try :
+        claim_response = service.partners().devices().claim(partnerId = PARTNER_ID, body=claim).execute()
+        code = 201
+        return claim_response["deviceId"], code
+    except HttpError as err:
+        if err.resp.get('content-type', '').startswith('application/json'):
+            print(json.loads(err.content))
+            reason = json.loads(err.content)["error"]["message"]
+            code = json.loads(err.content)["error"]["code"]
+            print("Error",reason)
+            return reason, code
+
 
 def get_configurations(customer_id):
     credentials = get_credential_customer(f'user_credential_{customer_id}.json')
@@ -192,8 +208,19 @@ def unclaim_single_device(imei):
         },
     "sectionType": "SECTION_TYPE_ZERO_TOUCH", # Required. The section type of the device's provisioning record.
     }
-    unclaim = service.partners().devices().unclaim(partnerId = PARTNER_ID, body = unclaim_json).execute()
-    return unclaim
+    try:
+        unclaim = service.partners().devices().unclaim(partnerId = PARTNER_ID, body = unclaim_json).execute()
+        code = 201
+        print("Unclaim", unclaim)
+        return unclaim, code
+    except HttpError as err:
+        if err.resp.get('content-type', '').startswith('application/json'):
+            print(json.loads(err.content))
+            #reason = json.loads(err.content)["error"]["details"]["code"]
+            reason = json.loads(err.content)["error"]["message"]
+            code = json.loads(err.content)["error"]["code"]
+            print("Error",reason)
+            return reason, code
  
     
 def get_device_information(imei):    

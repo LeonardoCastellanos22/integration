@@ -26,12 +26,7 @@
                   <input type="text" class="form-control custom-file-label" id="fileLabel" readonly>     
                 </div>
               </div>
-              <label for="csvFile" style="font-size: 18px;">Configuration :</label>
-                <select name="conf_select" class="selectpicker form-control"> 
-                    {% for configuration in configurations %}
-                        <option value="{{ configuration[0] }}">{{ configuration[1] }}</option>
-                    {% endfor %}
-                </select>                
+              <label for="csvFile" style="font-size: 18px;">Configuration :</label>            
               <div class="center">
                 <button type="submit" class="btn btn-primary btn-lg btn-submit">Add Devices</button>
               </div>

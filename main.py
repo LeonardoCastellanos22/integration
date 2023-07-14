@@ -87,9 +87,9 @@ def login():
                 print(f)
           #  tos = zero_touch_api.tos_error(customer_id)
           #  print(tos)
-            configurations = zero_touch_api.get_configurations(customer_id)
+           # configurations = zero_touch_api.get_configurations(customer_id)
             session['customer_id'] = customer_id
-            session['configurations'] = configurations
+            session['configurations'] = ["Not available"]
             session['token'] = cookie['token']
             session['server'] = safeuem_user
             return redirect(url_for('single_move'))
@@ -121,7 +121,7 @@ def single_enroll():
         if code != 201:
             flash(claim)
             return redirect(url_for('single_enroll'))            
-        set_configuration = zero_touch_api.set_configuration(configuration, claim, customer_id)
+       # set_configuration = zero_touch_api.set_configuration(configuration, claim, customer_id)
         return redirect(url_for('single_enroll'))
 
     return render_template('single_enroll.html', **context)
@@ -140,7 +140,7 @@ def bulk_enroll():
             f.save(f'./files/{f.filename}')
             imeis = read_csv(f'./files/{f.filename}')
             configuration = request.form.get('conf_select')   
-            default_configuration = zero_touch_api.set_default_configuration(configuration, customer_id)
+          #  default_configuration = zero_touch_api.set_default_configuration(configuration, customer_id)
             bulk_json = zero_touch_api.build_bulk_json(customer_id, imeis)
             claims = zero_touch_api.claim_batch_devices(bulk_json)      
             path = os.path.join(f'./files', f.filename)  

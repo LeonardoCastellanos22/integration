@@ -106,6 +106,8 @@ def get_list_of_customers():
     del list_customers["multintergral"]
     list_customers["Cenestel"] = list_customers["CENESTEL"]
     del list_customers["CENESTEL"]
+    list_customers["Macropay"] = list_customers["MacroPay"]
+    del list_customers["MacroPay"]
     return list_customers
     
     

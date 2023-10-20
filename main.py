@@ -143,7 +143,7 @@ def bulk_enroll():
     } 
     if request.method == 'POST': 
         try:
-            f = request.files.get['csvFile']
+            f = request.files['csvFile']
             data_filename = secure_filename(f.filename)
             f.save(os.path.join(app.config['UPLOAD_FOLDER'],
                             data_filename))

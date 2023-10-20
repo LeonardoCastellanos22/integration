@@ -145,6 +145,7 @@ def bulk_enroll():
         try:
             f = request.files['csvFile']
             data_filename = secure_filename(f.filename)
+            print(os.getcwd())
             f.save(os.path.join(app.config['UPLOAD_FOLDER'],
                             data_filename))
             imeis = read_csv(os.path.join(app.config['UPLOAD_FOLDER'],

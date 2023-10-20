@@ -14,8 +14,6 @@ from read_csv import read_csv
 from flask_login import logout_user, LoginManager, login_user, login_required
 import uvicorn
 from flask_login import UserMixin
-from werkzeug.utils import secure_filename
-
 
 
 
@@ -29,11 +27,6 @@ bootstrap = Bootstrap(app) #Toma la app de Flask y así se instancia Bootstrap
 CORS(app)
 SECRET_KEY = os.urandom(32)
 app.config['SECRET_KEY'] = SECRET_KEY
-
-UPLOAD_FOLDER = os.path.join('staticFiles', 'uploads')
-ALLOWED_EXTENSIONS = {'csv'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 
 
 
@@ -144,17 +137,13 @@ def bulk_enroll():
     if request.method == 'POST': 
         try:
             f = request.files['csvFile']
-            data_filename = secure_filename(f.filename)
-            print(os.getcwd())
-            f.save(os.path.join(app.config['UPLOAD_FOLDER'],
-                            data_filename))
-            imeis = read_csv(os.path.join(app.config['UPLOAD_FOLDER'],
-                     data_filename))
+            f.save(f'./{f.filename}')
+            imeis = read_csv(f'./{f.filename}')
             configuration = request.form.get('conf_select')   
           #  default_configuration = zero_touch_api.set_default_configuration(configuration, customer_id)
             bulk_json = zero_touch_api.build_bulk_json(customer_id, imeis)
             claims = zero_touch_api.claim_batch_devices(bulk_json)      
-            path = os.path.join(f'./files', f.filename)  
+            path = os.path.join(f'./', f.filename)  
             os.remove(path)
     
         except(FileNotFoundError) as error:

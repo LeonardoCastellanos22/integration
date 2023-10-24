@@ -7,5 +7,5 @@ def read_csv(path):
     return data[1::]
 
 if __name__ == '__main__':
-    data = read_csv('./files/imeibatch.csv')
+    data = read_csv('./imeibatch.csv')
     print(data)

@@ -14,6 +14,7 @@ from read_csv import read_csv
 from flask_login import logout_user, LoginManager, login_user, login_required
 import uvicorn
 from flask_login import UserMixin
+import json
 
 
 
@@ -42,12 +43,12 @@ class OptionFile(FlaskForm):
     submit = SubmitField("Next")
 
 class MoveSingleDevice(FlaskForm):
-    device_identifier = StringField("Device identifier", [validators.input_required(), validators.length(max=25)])
+    device_identifier = StringField("Device identifier", [validators.input_required(), validators.length(max=105)])
     to_group = SelectField("To group: ", coerce=str)
     submit = SubmitField("Send request")
     
 class EnrollSingleDevice(FlaskForm):
-    device_identifier = StringField("Device IMEI", [validators.input_required(), validators.length(max=25)])
+    device_identifier = StringField("Device IMEI", [validators.input_required(), validators.length(max=105)])
     configuration = SelectField("Configuration: ", coerce=str)
     submit = SubmitField("Send request")
 
@@ -55,7 +56,7 @@ class EnrollBulkDevice(FlaskForm):
     configuration = SelectField("Configuration: ", coerce=str)
     
 class UnenrollSingleDevice(FlaskForm):
-    device_identifier = StringField("Device IMEI", [validators.input_required(), validators.length(max=25)])
+    device_identifier = StringField("Device IMEI", [validators.input_required(), validators.length(max=105)])
     delete = RadioField("Delete device from", choices=[('zt','Zero Touch'),('zt&sf', 'Zero Touch and SafeUEM')],  default='zt')
     submit = SubmitField("Unenroll device")
 
@@ -77,18 +78,14 @@ def login():
             return redirect(url_for('login'))
         else:
             cookie = response.cookies.get_dict()
-            service = zero_touch_api.get_credentials_account()
-            list_of_customers = zero_touch_api.get_list_of_customers()
-            customer_id = zero_touch_api.get_customer_id(safeuem_user.capitalize(), list_of_customers)
+            with open ('./list_of_customers.json', 'r') as zero_touch_customers:
+                list_of_customers = json.load(zero_touch_customers)
+            customer_id, server = get_customer_id(safeuem_user.capitalize(), list_of_customers)
             if customer_id == None:
-                flash("Client not registered in AE")
+                flash("Client not registered in SafeUEM Lite")
                 return redirect(url_for('login'))
-            with open(f'user_credential_{customer_id}.json', 'w') as f:
-                print(f)
-          #  tos = zero_touch_api.tos_error(customer_id)
-          #  print(tos)
-           # configurations = zero_touch_api.get_configurations(customer_id)
             session['customer_id'] = customer_id
+            session['zero-touch'] = server
             session['configurations'] = ["Not available"]
             session['token'] = cookie['token']
             session['server'] = safeuem_user
@@ -99,8 +96,6 @@ def login():
 @app.route('/logout', methods=['GET','POST'])
 #@login_required
 def logout():
-    customer_id = session['customer_id']
-    os.remove(f"./user_credential_{customer_id}.json")   
     session.clear()     
     return redirect(url_for('login'))
 
@@ -108,8 +103,11 @@ def logout():
 #@login_required
 def single_enroll():
     enroll_single_device_form = EnrollSingleDevice()
-    customer_id = session.get('customer_id')
+    customer_id = session.get('customer_id') #Get customer id
     configurations = session.get('configurations')
+    zero_touch_server = session.get('zero-touch') #Get server (SafeUEM or Vianova)
+    server = session.get('server') #Get tenant server
+    token = session.get('token') #Get token
     enroll_single_device_form.configuration.choices = configurations
     context = {
         "enroll_single_device_form": enroll_single_device_form
@@ -117,11 +115,9 @@ def single_enroll():
     if enroll_single_device_form.validate_on_submit():
         imei = enroll_single_device_form.device_identifier.data # Get IMEi
         configuration = enroll_single_device_form.configuration.data #Get Config
-        claim, code = zero_touch_api.claim_device(imei, customer_id)
-        if code != 201:
-            flash(claim)
-            return redirect(url_for('single_enroll'))            
-       # set_configuration = zero_touch_api.set_configuration(configuration, claim, customer_id)
+        response = claim_single_device(server, token, zero_touch_server, customer_id, imei) #Claim devices
+        failures = check_response_failures_claim(response)
+        flash(failures)                  
         return redirect(url_for('single_enroll'))
 
     return render_template('single_enroll.html', **context)
@@ -131,24 +127,31 @@ def single_enroll():
 def bulk_enroll():
     customer_id = session.get('customer_id')
     configurations = session.get('configurations')
+    zero_touch_server = session.get('zero-touch') #Get server (SafeUEM or Vianova)
+    server = session.get('server') #Get tenant server
+    token = session.get('token') #Get token
     context = {
-        "configurations": configurations
+        "configurations": configurations,
+        "response" : "Hola mundo"
     } 
     if request.method == 'POST': 
         try:
             f = request.files['csvFile']
             f.save(f'./{f.filename}')
             imeis = read_csv(f'./{f.filename}')
-            configuration = request.form.get('conf_select')   
-          #  default_configuration = zero_touch_api.set_default_configuration(configuration, customer_id)
-            bulk_json = zero_touch_api.build_bulk_json(customer_id, imeis)
-            claims = zero_touch_api.claim_batch_devices(bulk_json)      
+            response = claim_bulk_devices(server, token, zero_touch_server, customer_id, imeis) #Claim devices
+            failures = check_response_failures_claim(response)
+            context = {
+                "configurations": configurations,
+                "response" : failures,
+                "modal" : 1
+            }        
             path = os.path.join(f'./', f.filename)  
             os.remove(path)
+            return render_template('bulk_enroll.html', **context)
     
         except(FileNotFoundError) as error:
-            print(error)
-        
+            print(error)        
         except(IsADirectoryError) as error:
             print(error)
         
@@ -158,6 +161,10 @@ def bulk_enroll():
 #@login_required
 def single_unenroll():
     single_unenroll_form = UnenrollSingleDevice()
+    customer_id = session.get('customer_id') #Get customer id
+    zero_touch_server = session.get('zero-touch') #Get server (SafeUEM or Vianova)
+    server = session.get('server') #Get tenant server
+    token = session.get('token') #Get token
     context = {
         "single_unenroll_form" : single_unenroll_form
         
@@ -166,11 +173,9 @@ def single_unenroll():
         choice = single_unenroll_form.delete.data
         if choice == 'zt':
             imei = single_unenroll_form.device_identifier.data #Get IMEI
-            unclaim, code = zero_touch_api.unclaim_single_device(imei)
-            if code != 201:
-                flash(unclaim)
-                return redirect(url_for('single_enroll'))
-            
+            response = unclaim_single_device(server, token, zero_touch_server, customer_id, imei) #Claim devices
+            failures = check_response_failures_unclaim(response)
+            flash(failures)             
             return redirect(url_for('single_unenroll'))        
         else:
             return redirect(url_for('single_unenroll')) 
@@ -180,23 +185,35 @@ def single_unenroll():
 
 @app.route('/bulk/unenroll', methods = ['GET', 'POST'])
 def bulk_unenroll():
+    
+    customer_id = session.get('customer_id')
+    configurations = session.get('configurations')
+    zero_touch_server = session.get('zero-touch') #Get server (SafeUEM or Vianova)
+    server = session.get('server') #Get tenant server
+    token = session.get('token') #Get token
 
     if request.method == 'POST': 
         try:
             option = request.form.getlist('delete_options')
-            print(option)
             f = request.files['csvFile']
-            f.save(f'./files/{f.filename}') 
-            imeis = read_csv(f'./files/{f.filename}')
+            f.save(f'./{f.filename}')
+            imeis = read_csv(f'./{f.filename}')
             if option[0] == 'zt':
-                unclaim_json = zero_touch_api.build_bulk_unclaim_json(imeis)
-                print(unclaim_json)
-
-                unclaim_response = zero_touch_api.unclaim_batch_devices(unclaim_json)
+                response = unclaim_bulk_devices(server, token, zero_touch_server, customer_id, imeis) #Claim devices
+                failures = check_response_failures_unclaim(response)
+                path = os.path.join(f'./', f.filename)  
+                os.remove(path)
+                context = {
+                    "configurations": configurations,
+                    "response" : failures,
+                    "modal" : 1
+                }                
+                return render_template('bulk_unenroll.html', **context)                          
             else:
+                path = os.path.join(f'./', f.filename)  
+                os.remove(path)
                 print("Deleting")
-            path = os.path.join(f'./files', f.filename)  
-            os.remove(path)
+
  
         except(FileNotFoundError) as error:
             print(error)
@@ -258,6 +275,27 @@ def single_move():
     
     return render_template('single_move.html', **context)
 
+
+def check_response_failures_claim(bulk_response):
+    failures = {imei : bulk_response[imei]  for imei in bulk_response if bulk_response[imei] != "success"}
+    if len(failures) == 0:
+        return "Devices correctly added to the Zero Touch portal"
+    else :
+        return failures
+    
+def check_response_failures_unclaim(bulk_response):
+    failures = {imei : bulk_response[imei]  for imei in bulk_response if bulk_response[imei] != "success"}
+    if len(failures) == 0:
+        return "Devices correctly removed from the Zero Touch portal"
+    else :
+        return failures
+        
+
+def get_customer_id(customer, list_of_customers):    
+    for server in list_of_customers["zero-touch"]:
+        if customer in list_of_customers["zero-touch"][server]:
+            return list_of_customers["zero-touch"][server][customer], server
+
 def move_bulk_devices(file_id, token, server):
     url = f"https://{server}.{BASE_URL}/partner/device/moveBatch"
     cookies = {"token": token}
@@ -302,6 +340,34 @@ def get_groups_request(server, token):
     response = requests.get(url, cookies = cookies)    
     return response.json()["groups"]
 
+def claim_single_device(server, token, zero_touch_server, customer_id, imei):
+    url = f"https://{server}.{BASE_URL}/partner/reseller/{zero_touch_server}/device/claim"
+    cookies = {"token": token}
+    body = {"customer" : customer_id, "imei" : imei.split(",")}
+    response = create_request(url, HEADERS, request_type="post", data = body, cookies=cookies)
+    return response.json()["data"]
+
+def claim_bulk_devices(server, token, zero_touch_server, customer_id, imeis):
+    url = f"https://{server}.{BASE_URL}/partner/reseller/{zero_touch_server}/device/claim"
+    cookies = {"token": token}
+    body = {"customer" : customer_id, "imei" : imeis}
+    response = create_request(url, HEADERS, request_type="post", data = body, cookies=cookies)
+    return response.json()["data"]
+
+def unclaim_bulk_devices(server, token, zero_touch_server, customer_id, imeis):
+    url = f"https://{server}.{BASE_URL}/partner/reseller/{zero_touch_server}/device/claim"
+    cookies = {"token": token}
+    body = {"customer" : customer_id, "imei" : imeis}
+    response = create_request(url, cookies = cookies, data = body, headers=HEADERS, request_type="delete")
+    return response.json()["data"]
+
+def unclaim_single_device(server, token, zero_touch_server, customer_id, imei):
+    url = f"https://{server}.{BASE_URL}/partner/reseller/{zero_touch_server}/device/claim"
+    cookies = {"token": token}
+    body = {"customer" : customer_id, "imei" : imei.split(",")}
+    response = create_request(url, cookies = cookies, data = body, headers=HEADERS, request_type="delete")
+    return response.json()["data"]
+
 def login_request(user, password, server):
     url = f"https://{server}.{BASE_URL}/partner/login"
     body = {"username": user, "password": password}
@@ -316,7 +382,7 @@ def create_request(url, headers, request_type, data=None, cookies = None):
     
     request_func = getattr(requests, request_type)
     kwargs = {"url": url, "headers": headers, "cookies":cookies}
-    if request_type == "post" or request_type == "put":
+    if request_type == "post" or request_type == "put" or request_type == "delete":
         kwargs["json"] = data
     try:
         req = request_func(**kwargs)

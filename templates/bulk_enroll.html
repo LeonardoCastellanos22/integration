@@ -13,7 +13,7 @@
     {%endblock%}
     {%block content%}
     <div class="container container-center">   
-      <div class = "container-gray">            
+      <div class = "container-gray">         
             <form action = "/bulk/enroll" method="post" enctype="multipart/form-data">
               <div class="form-group textarea">
                 <label for="csvFile" style="font-size: 18px;">Update a CSV file:</label>
@@ -28,13 +28,34 @@
               </div>
               <label for="csvFile" style="font-size: 18px;">Configuration :</label>            
               <div class="center">
-                <button type="submit" class="btn btn-primary btn-lg btn-submit">Add Devices</button>
+                <button type="submit" class="btn btn-primary btn-lg btn-submit"  >Add Devices</button>
               </div>
               <div class="progress center" style="display: none;">
                 <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
                 </div>
               </div>
+               <!-- Modal -->
+              <div class="modal fade" id="exampleModalLong" tabindex="-1" role="dialog" aria-labelledby="exampleModalLongTitle" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="exampleModalLongTitle">IMEI Logs</h5>
+                      <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                      </button>
+                    </div>
+                    <div class="modal-body" >                      
+                      {{response}}
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </form>
+           
+              
 
           </div>
         
@@ -45,8 +66,16 @@
 
     {%block scripts%}
         {{super()}}
-
+        {% if modal == 1 %}
         <script>
+          $(document).ready(function() {
+            $('#exampleModalLong').modal('show');  // Abre el modal si mi_variable es igual a 1
+          });
+      </script>
+      {% endif %}
+
+       <script>
+          
             document.getElementById("csvFile").addEventListener("change", function(e) {
               var fileLabel = document.getElementById("fileLabel");
               fileLabel.value = e.target.files[0].name;
@@ -60,7 +89,8 @@
               
       
                   });
-          </script>
+          </script> 
+ 
     {%endblock%}
 
 
